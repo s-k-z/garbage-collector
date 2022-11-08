@@ -5,7 +5,6 @@ import {
   canAdventure,
   canEquip,
   cliExecute,
-  closetAmount,
   create,
   Effect,
   equip,
@@ -38,7 +37,6 @@ import {
   numericModifier,
   outfit,
   print,
-  putCloset,
   refreshStash,
   restoreHp,
   retrieveItem,
@@ -48,7 +46,6 @@ import {
   setLocation,
   Skill,
   stashAmount,
-  takeCloset,
   toInt,
   toItem,
   totalTurnsPlayed,
@@ -83,7 +80,6 @@ import {
   clamp,
   CombatLoversLocket,
   Counter,
-  CrystalBall,
   ensureEffect,
   FindActionSourceConstraints,
   findLeprechaunMultiplier,
@@ -622,20 +618,6 @@ class FreeRunFight extends FreeFight {
   }
 }
 
-const pygmyMacro = Macro.if_(
-  $monster`pygmy bowler`,
-  Macro.trySkill($skill`Snokebomb`).item($item`Louder Than Bomb`)
-)
-  .if_(
-    $monster`pygmy orderlies`,
-    Macro.trySkill($skill`Feel Hatred`).item($item`divine champagne popper`)
-  )
-  .if_($monster`pygmy janitor`, Macro.item($item`tennis ball`))
-  .if_($monsters`giant rubber spider, time-spinner prank`, Macro.basicCombat())
-  .if_($monster`drunk pygmy`, Macro.trySkill($skill`Extract`).trySkill($skill`Sing Along`))
-  .ifHolidayWanderer(Macro.basicCombat())
-  .abort();
-
 function getStenchLocation() {
   return (
     $locations`Uncle Gator's Country Fun-Time Liquid Waste Sluice, The Hippy Camp (Bombed Back to the Stone Age), The Dark and Spooky Swamp`.find(
@@ -946,110 +928,11 @@ const freeFightSources = [
     }
   ),
 
-  // Initial 9 Pygmy fights
-  new FreeFight(
-    () =>
-      get("questL11Worship") !== "unstarted" && bowlOfScorpionsAvailable()
-        ? clamp(9 - get("_drunkPygmyBanishes"), 0, 9)
-        : 0,
-    () => {
-      putCloset(itemAmount($item`bowling ball`), $item`bowling ball`);
-      retrieveItem(clamp(9 - get("_drunkPygmyBanishes"), 0, 9), $item`Bowl of Scorpions`);
-      retrieveItem($item`Louder Than Bomb`);
-      retrieveItem($item`tennis ball`);
-      retrieveItem($item`divine champagne popper`);
-      adventureMacro($location`The Hidden Bowling Alley`, pygmyMacro);
-    },
-    true,
-    {}
-  ),
-
-  // 10th Pygmy fight. If we have an orb, equip it for this fight, to save for later
-  new FreeFight(
-    () => get("questL11Worship") !== "unstarted" && get("_drunkPygmyBanishes") === 9,
-    () => {
-      putCloset(itemAmount($item`bowling ball`), $item`bowling ball`);
-      retrieveItem($item`Bowl of Scorpions`);
-      adventureMacro($location`The Hidden Bowling Alley`, pygmyMacro);
-    },
-    true,
-    pygmyOptions($items`miniature crystal ball`.filter((item) => have(item)))
-  ),
-  // 11th pygmy fight if we lack a saber
-  new FreeFight(
-    () =>
-      get("questL11Worship") !== "unstarted" &&
-      get("_drunkPygmyBanishes") === 10 &&
-      (!have($item`Fourth of May Cosplay Saber`) || crateStrategy() === "Saber"),
-    () => {
-      putCloset(itemAmount($item`bowling ball`), $item`bowling ball`);
-      retrieveItem($item`Bowl of Scorpions`);
-      adventureMacroAuto($location`The Hidden Bowling Alley`, pygmyMacro);
-    },
-    true,
-    pygmyOptions()
-  ),
-
-  // 11th+ pygmy fight if we have a saber- saber friends
-  new FreeFight(
-    () => {
-      const rightTime =
-        have($item`Fourth of May Cosplay Saber`) &&
-        crateStrategy() !== "Saber" &&
-        get("_drunkPygmyBanishes") >= 10;
-      const saberedMonster = get("_saberForceMonster");
-      const wrongPygmySabered =
-        saberedMonster &&
-        $monsters`pygmy orderlies, pygmy bowler, pygmy janitor`.includes(saberedMonster);
-      const drunksCanAppear =
-        get("_drunkPygmyBanishes") === 10 ||
-        (saberedMonster === $monster`drunk pygmy` && get("_saberForceMonsterCount"));
-      return (
-        get("questL11Worship") !== "unstarted" && rightTime && !wrongPygmySabered && drunksCanAppear
-      );
-    },
-    () => {
-      if (
-        (get("_saberForceMonster") !== $monster`drunk pygmy` ||
-          get("_saberForceMonsterCount") === 1) &&
-        get("_saberForceUses") < 5
-      ) {
-        putCloset(itemAmount($item`bowling ball`), $item`bowling ball`);
-        putCloset(itemAmount($item`Bowl of Scorpions`), $item`Bowl of Scorpions`);
-        adventureMacro($location`The Hidden Bowling Alley`, Macro.skill($skill`Use the Force`));
-      } else {
-        if (closetAmount($item`Bowl of Scorpions`) > 0) {
-          takeCloset(closetAmount($item`Bowl of Scorpions`), $item`Bowl of Scorpions`);
-        } else retrieveItem($item`Bowl of Scorpions`);
-        adventureMacro($location`The Hidden Bowling Alley`, pygmyMacro);
-      }
-    },
-    false,
-    pygmyOptions($items`Fourth of May Cosplay Saber`)
-  ),
-
-  // Finally, saber or not, if we have a drunk pygmy in our crystal ball, let it out.
-  new FreeFight(
-    () =>
-      get("questL11Worship") !== "unstarted" &&
-      CrystalBall.ponder().get($location`The Hidden Bowling Alley`) === $monster`drunk pygmy` &&
-      get("_drunkPygmyBanishes") >= 11,
-    () => {
-      putCloset(itemAmount($item`bowling ball`), $item`bowling ball`);
-      retrieveItem(1, $item`Bowl of Scorpions`);
-      adventureMacro(
-        $location`The Hidden Bowling Alley`,
-        Macro.if_($monster`drunk pygmy`, pygmyMacro).abort()
-      );
-    },
-    true,
-    pygmyOptions($items`miniature crystal ball`.filter((item) => have(item)))
-  ),
-
   new FreeFight(
     () =>
       have($item`Time-Spinner`) &&
       !doingExtrovermectin() &&
+      bowlOfScorpionsAvailable() &&
       $location`The Hidden Bowling Alley`.combatQueue.includes("drunk pygmy") &&
       get("_timeSpinnerMinutesUsed") < 8,
     () => {
